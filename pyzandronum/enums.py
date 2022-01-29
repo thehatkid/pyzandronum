@@ -83,3 +83,26 @@ class Response(enum.Enum):
     ACCEPTED = 5660023
     DENIED_QUERY = 5660024
     DENIED_BANNED = 5660025
+
+
+class Gamemode(enum.Enum):
+    """
+    Zandronum enumerated game modes.
+    """
+
+    COOPERATIVE = 0
+    SURVIVAL = 1
+    INVASION = 2
+    DEATHMATCH = 3
+    TEAMPLAY = 4
+    DUEL = 5
+    TERMINATOR = 6
+    LASTMANSTANDING = 7
+    TEAMLMS = 8
+    POSSESSION = 9
+    TEAMPOSSESSION = 10
+    TEAMGAME = 11
+    CTF = 12
+    ONEFLAGCTF = 13
+    SKULLTAG = 14
+    DOMINATION = 15
