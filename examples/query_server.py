@@ -7,15 +7,16 @@ server = pyzandronum.Server('195.2.236.130', 6665)
 server.query()
 
 # Output server info
-print('Server Name:', server._query_dict['hostname'])
-print('Current Map:', server._query_dict['map'])
+print('Host Name:', server.name)
+print('Current Game Map:', server.map)
 print('Online Players: {0}/{1} (max clients: {2})'.format(
-    server._query_dict['numplayers'],
-    server._query_dict['maxplayers'],
-    server._query_dict['maxclients']
+    server.number_players,
+    server.max_players,
+    server.max_clients
 ))
 print('PWADs: {0} (total loaded: {1})'.format(
-    server._query_dict['pwads_list'],
-    server._query_dict['pwads_loaded']
+    server.pwads,
+    server.pwads_loaded
 ))
-print('IWAD:', server._query_dict['iwad'])
+print('IWAD filename:', server.iwad, '| IWAD name:', server.gamename)
+print('Game mode:', server.gamemode)
