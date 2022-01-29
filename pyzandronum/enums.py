@@ -1,5 +1,24 @@
 import enum
 
+GAMEMODE_TEXT = [
+    'Cooperative',
+    'Survival Cooperative',
+    'Invasion',
+    'Deathmatch',
+    'Team Deathmatch',
+    'Duel',
+    'Terminator',
+    'Last Man Standing',
+    'Team Last Man Standing',
+    'Possession',
+    'Team Possession',
+    'Teamgame (ACS)',
+    'Capture the Flag',
+    'One flag CTF',
+    'Skulltag',
+    'Domination'
+]
+
 
 class RequestFlags(enum.Flag):
     """
@@ -106,3 +125,6 @@ class Gamemode(enum.Enum):
     ONEFLAGCTF = 13
     SKULLTAG = 14
     DOMINATION = 15
+
+    def __str__(self):
+        return GAMEMODE_TEXT[self.value]
