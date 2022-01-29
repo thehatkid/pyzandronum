@@ -24,16 +24,41 @@ class Server:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.request_flags = flags.value
         self.huffman = huffman.Huffman(huffman.HUFFMAN_FREQS)
-        self.flags = 0
-
-        self._bytepos = 0
-        self._raw_data = None
-        self._response = None
-        self._time = None
-        self._flags = None
-        self._query_dict = {}
+        self.response = None
+        self.response_flags = None
+        self.flags = None
+        self.time = None
 
         self.sock.settimeout(timeout)
+
+        self._bytepos = 0
+        self._raw_data = b''
+        self._query_dict = {
+            'version': None,
+            'hostname': None,
+            'url': None,
+            'map': None,
+            'maxclients': None,
+            'maxplayers': None,
+            'pwads_loaded': None,
+            'pwads_list': None,
+            'gamemode': None,
+            'instagib': None,
+            'buckshot': None,
+            'gamename': None,
+            'iwad': None,
+            'forcepassword': None,
+            'forcejoinpassword': None,
+            'skill': None,
+            'botskill': None,
+            'fraglimit': None,
+            'timelimit': None,
+            'timelimit_left': None,
+            'duellimit': None,
+            'pointlimit': None,
+            'winlimit': None,
+            'numplayers': None
+        }
 
     def query(self) -> None:
         """
@@ -113,19 +138,31 @@ class Server:
             for i in range(0, self._query_dict['pwads_loaded']):
                 self._query_dict['pwads_list'].append(self._next_string())
         # The current gamemode
-        self._query_dict['gamemode'] = self._next_bytes(1)
+        self._query_dict['gamemode'] = enums.Gamemode(self._next_bytes(1))
         # Instagib
-        self._query_dict['instagib'] = self._next_bytes(1)
+        if self._next_bytes(1) == 1:
+            self._query_dict['instagib'] = True
+        else:
+            self._query_dict['instagib'] = False
         # Buckshot
-        self._query_dict['instagib'] = self._next_bytes(1)
+        if self._next_bytes(1) == 1:
+            self._query_dict['buckshot'] = True
+        else:
+            self._query_dict['buckshot'] = False
         # The game's name ("DOOM", "DOOM II", "HERETIC", "HEXEN", "ERROR!")
         self._query_dict['gamename'] = self._next_string()
         # The IWAD's name
         self._query_dict['iwad'] = self._next_string()
         # Whether a password is required to join the server
-        self._query_dict['forcepassword'] = self._next_bytes(1)
+        if self._next_bytes(1) == 1:
+            self._query_dict['forcepassword'] = True
+        else:
+            self._query_dict['forcepassword'] = False
         # Whether a password is required to join the game
-        self._query_dict['forcejoinpassword'] = self._next_bytes(1)
+        if self._next_bytes(1) == 1:
+            self._query_dict['forcejoinpassword'] = True
+        else:
+            self._query_dict['forcejoinpassword'] = False
         # The game's difficulty (skill)
         self._query_dict['skill'] = self._next_bytes(1)
         # The bot difficulty (botskill)
@@ -147,6 +184,136 @@ class Server:
         # The number of players in the server
         self._query_dict['numplayers'] = self._next_bytes(1)
         # TODO: append some flags from query
+
+    @property
+    def version(self) -> str:
+        """:class:`str`: Returns the host's version."""
+        return self._query_dict['version']
+
+    @property
+    def name(self) -> str:
+        """:class:`str`: Returns the host's name."""
+        return self._query_dict['hostname']
+
+    @property
+    def url(self) -> str:
+        """:class:`str`: Returns the host's URL website.
+        Uses for downloading PWADs from self-hosted."""
+        return self._query_dict['url']
+
+    @property
+    def map(self) -> str:
+        """:class:`str`: Returns the host's current game map."""
+        return self._query_dict['map']
+
+    @property
+    def max_clients(self) -> int:
+        """:class:`int`: Returns the host's maximum clients in host."""
+        return self._query_dict['maxclients']
+
+    @property
+    def max_players(self) -> int:
+        """:class:`int`: Returns the host's maximum players in game."""
+        return self._query_dict['maxplayers']
+
+    @property
+    def pwads_loaded(self) -> int:
+        """:class:`int`: Returns the count of loaded PWADs in host."""
+        return self._query_dict['pwads_loaded']
+
+    @property
+    def pwads(self) -> list:
+        """:class:`list`: Returns the list of loaded PWADs in host."""
+        return self._query_dict['pwads_list']
+
+    @property
+    def gamemode(self) -> enums.Gamemode:
+        """:class:`Gamemode`: Returns the host's current game mode."""
+        return self._query_dict['gamemode']
+
+    @property
+    def instagib(self) -> bool:
+        """:class:`bool`: Returns True if Instagib modifier
+        is enabled on the host."""
+        return self._query_dict['instagib']
+
+    @property
+    def buckshot(self) -> bool:
+        """:class:`bool`: Returns True if Buckshot modifier
+        is enabled on the host."""
+        return self._query_dict['buckshot']
+
+    @property
+    def gamename(self) -> str:
+        """:class:`str`: Returns host's game name from IWAD."""
+        return self._query_dict['gamename']
+
+    @property
+    def iwad(self) -> str:
+        """:class:`str`: Returns host's current IWAD filename."""
+        return self._query_dict['iwad']
+
+    @property
+    def force_password(self) -> bool:
+        """:class:`bool`: Returns True if host forces password
+        for connection."""
+        return self._query_dict['forcepassword']
+
+    @property
+    def force_join_password(self) -> bool:
+        """:class:`bool`: Returns True if host forces password
+        for joining the game."""
+        return self._query_dict['forcejoinpassword']
+
+    @property
+    def skill(self) -> int:
+        """:class:`int`: Returns the host's game skill."""
+        return self._query_dict['skill']
+
+    @property
+    def bot_skill(self) -> int:
+        """:class:`int`: Returns the host's bot skill."""
+        return self._query_dict['botskill']
+
+    @property
+    def frag_limit(self) -> int:
+        """:class:`int`: Returns the game's frag limit."""
+        return self._query_dict['fraglimit']
+
+    @property
+    def time_limit(self) -> int:
+        """:class:`int`: Returns the game's time limit."""
+        return self._query_dict['timelimit']
+
+    @property
+    def time_limit_left(self) -> int:
+        """:class:`int`: Returns the game's time limit left in minutes."""
+        return self._query_dict['timelimit_left']
+
+    @property
+    def duel_limit(self) -> int:
+        """:class:`int`: Returns the game's duels limit."""
+        return self._query_dict['duellimit']
+
+    @property
+    def point_limit(self) -> int:
+        """:class:`int`: Returns the game's points limit in CTF."""
+        return self._query_dict['pointlimit']
+
+    @property
+    def win_limit(self) -> int:
+        """:class:`int`: Returns the game's win count limit."""
+        return self._query_dict['winlimit']
+
+    @property
+    def number_players(self) -> int:
+        """:class:`int`: Returns the host's number of players in game."""
+        return self._query_dict['numplayers']
+
+    @property
+    def email(self) -> str:
+        """:class:`str`: Returns the host's E-Mail address."""
+        return self._query_dict['hostemail']
 
     def _next_bytes(self, bytes_length: int):
         ret_int = int.from_bytes(
