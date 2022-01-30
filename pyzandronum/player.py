@@ -57,6 +57,9 @@ class Player:
         # Set our "end byte position" marker
         self._byteendpos = self._bytepos
 
+    def __repr__(self) -> str:
+        return f'<Player {self.name!r}>'
+
     @property
     def name(self) -> str:
         """:class:`str`: Returns the player's name (without color markers)"""
