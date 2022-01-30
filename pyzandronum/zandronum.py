@@ -20,22 +20,12 @@ class Server:
         flags: enums.RequestFlags = enums.RequestFlags.default(),
         timeout: float = 5.0
     ) -> None:
-        self.address = address
-        self.port = port
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.request_flags = flags.value
-        self.huffman = huffman.Huffman(huffman.HUFFMAN_FREQS)
-        self.response = None
-        self.response_flags = None
-        self.flags = None
-        self.time = None
-        self.players: list[Player] = []
-
-        self.sock.settimeout(timeout)
-
-        self._bytepos = 0
-        self._raw_data = b''
-        self._query_dict = {
+        self.address: str = address
+        self.port: int = port
+        self.response: int = None
+        self.response_time: int = None
+        self.response_flags: int = None
+        self.query_dict = {
             'version': None,
             'hostname': None,
             'url': None,
@@ -62,15 +52,25 @@ class Server:
             'winlimit': None,
             'numplayers': None
         }
+        self.players: list[Player] = []
+
+        self._huffman = huffman.Huffman(huffman.HUFFMAN_FREQS)
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._request_flags = flags.value
+        self._buffsize = 8192
+        self._bytepos = 0
+        self._raw_data = b''
+
+        self._sock.settimeout(timeout)
 
     def __enter__(self) -> "Server":
         self.query()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.sock.close()
+        self._sock.close()
 
-    def query(self) -> None:
+    def query(self) -> "Server":
         """
         Requests server query to fetch server infomation.
         """
@@ -83,20 +83,22 @@ class Server:
         # Launcher challenge
         request = struct.pack('l', 199)
         # Desired information
-        request += struct.pack('l', self.request_flags)
+        request += struct.pack('l', self._request_flags)
         # Current time, this will be sent back to you so you can determine ping
         request += struct.pack('l', int(time.time()))
 
         # Compress query request with the Huffman algorithm
-        request_encoded = self.huffman.encode(request)
+        request_encoded = self._huffman.encode(request)
 
         # Send the query request to Zandronum server
-        self.sock.sendto(request_encoded, (self.address, self.port))
-        data, server = self.sock.recvfrom(8192)
-        self._raw_data = self.huffman.decode(data)
+        self._sock.sendto(request_encoded, (self.address, self.port))
+        data, server = self._sock.recvfrom(self._buffsize)
+        self._raw_data = self._huffman.decode(data)
 
         # Calling method for parsing server query response
         self._parse()
+
+        return self
 
     def _parse(self) -> None:
         """
@@ -108,236 +110,236 @@ class Server:
 
         # 0: Get server response header and time stamp (both 4 byte long ints)
         # Server response
-        self._response = self._next_bytes(4)
+        self.response = self._next_bytes(4)
         # Time which you sent to the server
-        self._time = self._next_bytes(4)
+        self.response_time = self._next_bytes(4)
 
         # Checking server response magic number
-        if self._response != enums.Response.ACCEPTED.value:
-            if self._response == enums.Response.DENIED_QUERY.value:
+        if self.response != enums.Response.ACCEPTED.value:
+            if self.response == enums.Response.DENIED_QUERY.value:
                 raise exceptions.QueryIgnored
-            elif self._response == enums.Response.DENIED_BANNED.value:
+            elif self.response == enums.Response.DENIED_BANNED.value:
                 raise exceptions.QueryBanned
             else:
                 raise exceptions.QueryDenied
 
         # 1: String of Zandronum server version
-        self._query_dict['version'] = self._next_string()
+        self.query_dict['version'] = self._next_string()
 
         # 2: Our flags are repeated back to us (long int)
-        self._flags = self._next_bytes(4)
+        self.response_flags = self._next_bytes(4)
 
         # 3: Flags
         # The server's name (sv_hostname)
-        self._query_dict['hostname'] = self._next_string()
+        self.query_dict['hostname'] = self._next_string()
         # The server's WAD URL (sv_website)
-        self._query_dict['url'] = self._next_string()
+        self.query_dict['url'] = self._next_string()
         # The server host's e-mail (sv_hostemail)
-        self._query_dict['hostemail'] = self._next_string()
+        self.query_dict['hostemail'] = self._next_string()
         # The current map's name
-        self._query_dict['map'] = self._next_string()
+        self.query_dict['map'] = self._next_string()
         # The max number of clients (sv_maxclients)
-        self._query_dict['maxclients'] = self._next_bytes(1)
+        self.query_dict['maxclients'] = self._next_bytes(1)
         # The max number of players (sv_maxplayers)
-        self._query_dict['maxplayers'] = self._next_bytes(1)
+        self.query_dict['maxplayers'] = self._next_bytes(1)
         # The number of PWADs loaded
-        self._query_dict['pwads_loaded'] = self._next_bytes(1)
+        self.query_dict['pwads_loaded'] = self._next_bytes(1)
         # The PWAD's name (sent for each PWAD)
-        self._query_dict['pwads_list'] = []
-        if int(self._query_dict['pwads_loaded']) > 0:
-            for i in range(0, self._query_dict['pwads_loaded']):
-                self._query_dict['pwads_list'].append(self._next_string())
+        self.query_dict['pwads_list'] = []
+        if int(self.query_dict['pwads_loaded']) > 0:
+            for i in range(0, self.query_dict['pwads_loaded']):
+                self.query_dict['pwads_list'].append(self._next_string())
         # The current gamemode
-        self._query_dict['gamemode'] = enums.Gamemode(self._next_bytes(1))
+        self.query_dict['gamemode'] = enums.Gamemode(self._next_bytes(1))
         # Sets teamgame boolean if gamemode with teams
-        if self._query_dict['gamemode'] in [
+        if self.query_dict['gamemode'] in [
             enums.Gamemode.TEAMPLAY,
             enums.Gamemode.TEAMLMS,
             enums.Gamemode.TEAMPOSSESSION
         ]:
-            self._query_dict['teamgame'] = True
+            self.query_dict['teamgame'] = True
         else:
-            self._query_dict['teamgame'] = False
+            self.query_dict['teamgame'] = False
         # Instagib
         if self._next_bytes(1) == 1:
-            self._query_dict['instagib'] = True
+            self.query_dict['instagib'] = True
         else:
-            self._query_dict['instagib'] = False
+            self.query_dict['instagib'] = False
         # Buckshot
         if self._next_bytes(1) == 1:
-            self._query_dict['buckshot'] = True
+            self.query_dict['buckshot'] = True
         else:
-            self._query_dict['buckshot'] = False
+            self.query_dict['buckshot'] = False
         # The game's name ("DOOM", "DOOM II", "HERETIC", "HEXEN", "ERROR!")
-        self._query_dict['gamename'] = self._next_string()
+        self.query_dict['gamename'] = self._next_string()
         # The IWAD's name
-        self._query_dict['iwad'] = self._next_string()
+        self.query_dict['iwad'] = self._next_string()
         # Whether a password is required to join the server
         if self._next_bytes(1) == 1:
-            self._query_dict['forcepassword'] = True
+            self.query_dict['forcepassword'] = True
         else:
-            self._query_dict['forcepassword'] = False
+            self.query_dict['forcepassword'] = False
         # Whether a password is required to join the game
         if self._next_bytes(1) == 1:
-            self._query_dict['forcejoinpassword'] = True
+            self.query_dict['forcejoinpassword'] = True
         else:
-            self._query_dict['forcejoinpassword'] = False
+            self.query_dict['forcejoinpassword'] = False
         # The game's difficulty (skill)
-        self._query_dict['skill'] = self._next_bytes(1)
+        self.query_dict['skill'] = self._next_bytes(1)
         # The bot difficulty (botskill)
-        self._query_dict['botskill'] = self._next_bytes(1)
+        self.query_dict['botskill'] = self._next_bytes(1)
         # Value of fraglimit
-        self._query_dict['fraglimit'] = self._next_bytes(2)
+        self.query_dict['fraglimit'] = self._next_bytes(2)
         # Value of timelimit
-        self._query_dict['timelimit'] = self._next_bytes(2)
+        self.query_dict['timelimit'] = self._next_bytes(2)
         # Time left in minutes (only sent if timelimit > 0)
-        self._query_dict['timelimit_left'] = 0
-        if self._query_dict['timelimit'] != 0:
-            self._query_dict['timelimit_left'] = self._next_bytes(2)
+        self.query_dict['timelimit_left'] = 0
+        if self.query_dict['timelimit'] != 0:
+            self.query_dict['timelimit_left'] = self._next_bytes(2)
         # Duel limit (duellimit)
-        self._query_dict['duellimit'] = self._next_bytes(2)
+        self.query_dict['duellimit'] = self._next_bytes(2)
         # Point limit (pointlimit)
-        self._query_dict['pointlimit'] = self._next_bytes(2)
+        self.query_dict['pointlimit'] = self._next_bytes(2)
         # Win limit (winlimit)
-        self._query_dict['winlimit'] = self._next_bytes(2)
+        self.query_dict['winlimit'] = self._next_bytes(2)
         # The number of players in the server
-        self._query_dict['numplayers'] = self._next_bytes(1)
+        self.query_dict['numplayers'] = self._next_bytes(1)
         # Player datas
-        if self._query_dict['numplayers'] > 0:
-            for i in range(0, int(self._query_dict['numplayers'])):
-                self.players.append(Player(self._raw_data, self._bytepos, self._query_dict['teamgame']))
+        if self.query_dict['numplayers'] > 0:
+            for i in range(0, int(self.query_dict['numplayers'])):
+                self.players.append(Player(self._raw_data, self._bytepos, self.query_dict['teamgame']))
                 self._bytepos = self.players[i]._bytepos
         # TODO: append some flags from query
 
     @property
     def version(self) -> str:
         """:class:`str`: Returns the host's version."""
-        return self._query_dict['version']
+        return self.query_dict['version']
 
     @property
     def name(self) -> str:
         """:class:`str`: Returns the host's name."""
-        return self._query_dict['hostname']
+        return self.query_dict['hostname']
 
     @property
     def url(self) -> str:
         """:class:`str`: Returns the host's URL website.
         Uses for downloading PWADs from self-hosted."""
-        return self._query_dict['url']
+        return self.query_dict['url']
 
     @property
     def map(self) -> str:
         """:class:`str`: Returns the host's current game map."""
-        return self._query_dict['map']
+        return self.query_dict['map']
 
     @property
     def max_clients(self) -> int:
         """:class:`int`: Returns the host's maximum clients in host."""
-        return self._query_dict['maxclients']
+        return self.query_dict['maxclients']
 
     @property
     def max_players(self) -> int:
         """:class:`int`: Returns the host's maximum players in game."""
-        return self._query_dict['maxplayers']
+        return self.query_dict['maxplayers']
 
     @property
     def pwads_loaded(self) -> int:
         """:class:`int`: Returns the count of loaded PWADs in host."""
-        return self._query_dict['pwads_loaded']
+        return self.query_dict['pwads_loaded']
 
     @property
     def pwads(self) -> list:
         """:class:`list`: Returns the list of loaded PWADs in host."""
-        return self._query_dict['pwads_list']
+        return self.query_dict['pwads_list']
 
     @property
     def gamemode(self) -> enums.Gamemode:
         """:class:`Gamemode`: Returns the host's current game mode."""
-        return self._query_dict['gamemode']
+        return self.query_dict['gamemode']
 
     @property
     def instagib(self) -> bool:
         """:class:`bool`: Returns True if Instagib modifier
         is enabled on the host."""
-        return self._query_dict['instagib']
+        return self.query_dict['instagib']
 
     @property
     def buckshot(self) -> bool:
         """:class:`bool`: Returns True if Buckshot modifier
         is enabled on the host."""
-        return self._query_dict['buckshot']
+        return self.query_dict['buckshot']
 
     @property
     def gamename(self) -> str:
         """:class:`str`: Returns host's game name from IWAD."""
-        return self._query_dict['gamename']
+        return self.query_dict['gamename']
 
     @property
     def iwad(self) -> str:
         """:class:`str`: Returns host's current IWAD filename."""
-        return self._query_dict['iwad']
+        return self.query_dict['iwad']
 
     @property
     def force_password(self) -> bool:
         """:class:`bool`: Returns True if host forces password
         for connection."""
-        return self._query_dict['forcepassword']
+        return self.query_dict['forcepassword']
 
     @property
     def force_join_password(self) -> bool:
         """:class:`bool`: Returns True if host forces password
         for joining the game."""
-        return self._query_dict['forcejoinpassword']
+        return self.query_dict['forcejoinpassword']
 
     @property
     def skill(self) -> int:
         """:class:`int`: Returns the host's game skill."""
-        return self._query_dict['skill']
+        return self.query_dict['skill']
 
     @property
     def bot_skill(self) -> int:
         """:class:`int`: Returns the host's bot skill."""
-        return self._query_dict['botskill']
+        return self.query_dict['botskill']
 
     @property
     def frag_limit(self) -> int:
         """:class:`int`: Returns the game's frag limit."""
-        return self._query_dict['fraglimit']
+        return self.query_dict['fraglimit']
 
     @property
     def time_limit(self) -> int:
         """:class:`int`: Returns the game's time limit."""
-        return self._query_dict['timelimit']
+        return self.query_dict['timelimit']
 
     @property
     def time_limit_left(self) -> int:
         """:class:`int`: Returns the game's time limit left in minutes."""
-        return self._query_dict['timelimit_left']
+        return self.query_dict['timelimit_left']
 
     @property
     def duel_limit(self) -> int:
         """:class:`int`: Returns the game's duels limit."""
-        return self._query_dict['duellimit']
+        return self.query_dict['duellimit']
 
     @property
     def point_limit(self) -> int:
         """:class:`int`: Returns the game's points limit in CTF."""
-        return self._query_dict['pointlimit']
+        return self.query_dict['pointlimit']
 
     @property
     def win_limit(self) -> int:
         """:class:`int`: Returns the game's win count limit."""
-        return self._query_dict['winlimit']
+        return self.query_dict['winlimit']
 
     @property
     def number_players(self) -> int:
         """:class:`int`: Returns the host's number of players in game."""
-        return self._query_dict['numplayers']
+        return self.query_dict['numplayers']
 
     @property
     def email(self) -> str:
         """:class:`str`: Returns the host's E-Mail address."""
-        return self._query_dict['hostemail']
+        return self.query_dict['hostemail']
 
     def _next_bytes(self, bytes_length: int):
         ret_int = int.from_bytes(
