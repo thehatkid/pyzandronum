@@ -63,6 +63,13 @@ class Server:
             'numplayers': None
         }
 
+    def __enter__(self) -> "Server":
+        self.query()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.sock.close()
+
     def query(self) -> None:
         """
         Requests server query to fetch server infomation.
