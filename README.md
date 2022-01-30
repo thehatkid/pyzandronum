@@ -5,7 +5,7 @@
     <a href="https://github.com/thehatkid/pyzandronum/commits"><img src="https://img.shields.io/github/commit-activity/w/thehatkid/pyzandronum.svg" alt="Commit Activity" /></a>
 </p>
 
-A modern, easy to use [Server query](https://wiki.zandronum.com/Launcher_protocol) wrapper for [Zandronum](https://zandronum.com/) written in Python.
+A modern, independent, easy to use, asynchronous [Server query](https://wiki.zandronum.com/Launcher_protocol) wrapper for [Zandronum](https://zandronum.com/) written in Python.
 
 ## What is it?
 
