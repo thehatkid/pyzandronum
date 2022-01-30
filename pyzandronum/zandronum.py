@@ -5,6 +5,7 @@ import time
 from . import enums
 from . import huffman
 from . import exceptions
+from .player import Player
 
 
 class Server:
@@ -28,6 +29,7 @@ class Server:
         self.response_flags = None
         self.flags = None
         self.time = None
+        self.players: list[Player] = []
 
         self.sock.settimeout(timeout)
 
@@ -43,6 +45,7 @@ class Server:
             'pwads_loaded': None,
             'pwads_list': None,
             'gamemode': None,
+            'teamgame': None,
             'instagib': None,
             'buckshot': None,
             'gamename': None,
@@ -139,6 +142,15 @@ class Server:
                 self._query_dict['pwads_list'].append(self._next_string())
         # The current gamemode
         self._query_dict['gamemode'] = enums.Gamemode(self._next_bytes(1))
+        # Sets teamgame boolean if gamemode with teams
+        if self._query_dict['gamemode'] in [
+            enums.Gamemode.TEAMPLAY,
+            enums.Gamemode.TEAMLMS,
+            enums.Gamemode.TEAMPOSSESSION
+        ]:
+            self._query_dict['teamgame'] = True
+        else:
+            self._query_dict['teamgame'] = False
         # Instagib
         if self._next_bytes(1) == 1:
             self._query_dict['instagib'] = True
@@ -183,6 +195,11 @@ class Server:
         self._query_dict['winlimit'] = self._next_bytes(2)
         # The number of players in the server
         self._query_dict['numplayers'] = self._next_bytes(1)
+        # Player datas
+        if self._query_dict['numplayers'] > 0:
+            for i in range(0, int(self._query_dict['numplayers'])):
+                self.players.append(Player(self._raw_data, self._bytepos, self._query_dict['teamgame']))
+                self._bytepos = self.players[i]._bytepos
         # TODO: append some flags from query
 
     @property
