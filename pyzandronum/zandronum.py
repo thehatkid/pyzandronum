@@ -29,6 +29,7 @@ class Server:
             'version': None,
             'hostname': None,
             'url': None,
+            'hostemail': None,
             'map': None,
             'maxclients': None,
             'maxplayers': None,
@@ -50,7 +51,21 @@ class Server:
             'duellimit': None,
             'pointlimit': None,
             'winlimit': None,
-            'numplayers': None
+            'numplayers': None,
+            'testing_server': None,
+            'testing_server_archive': None,
+            'dmflags_number': None,
+            'dmflags': None,
+            'dmflags2': None,
+            'zadmflags': None,
+            'compatflags': None,
+            'zacompatflags': None,
+            'compatflags2': None,
+            'security_settings': None,
+            'optional_pwads_count': None,
+            'optional_pwads': None,
+            'deh_loaded': None,
+            'deh_list': None
         }
         self.players: list[Player] = []
 
@@ -207,9 +222,50 @@ class Server:
         # Player datas
         if self.query_dict['numplayers'] > 0:
             for i in range(0, int(self.query_dict['numplayers'])):
-                self.players.append(Player(self._raw_data, self._bytepos, self.query_dict['teamgame']))
+                self.players.append(Player(
+                    self._raw_data,
+                    self._bytepos,
+                    self.query_dict['teamgame']
+                ))
                 self._bytepos = self.players[i]._bytepos
-        # TODO: append some flags from query
+        # Whether this server is running a testing binary
+        if self._next_bytes(1):
+            self.query_dict['testing_server'] = True
+        else:
+            self.query_dict['testing_server'] = False
+        # An empty string in case the server is running a stable binary,
+        # otherwise name of the testing binary
+        self.query_dict['testing_server_archive'] = self._next_string()
+        # The number of flags that will be sent
+        self.query_dict['dmflags_number'] = self._next_bytes(1)
+        # The values of the flags (SQF_ALL_DMFLAGS)
+        self.query_dict['dmflags'] = self._next_bytes(4)
+        self.query_dict['dmflags2'] = self._next_bytes(4)
+        self.query_dict['zadmflags'] = self._next_bytes(4)
+        self.query_dict['compatflags'] = self._next_bytes(4)
+        self.query_dict['zacompatflags'] = self._next_bytes(4)
+        self.query_dict['compatflags2'] = self._next_bytes(4)
+        # Whether the server is enforcing the master ban list. (boolean)
+        # The other bits of this byte may be used to transfer other
+        # security related settings in the future.
+        self.query_dict['security_settings'] = self._next_bytes(1)
+        # Amount of optional wad indices that follow
+        self.query_dict['optional_pwads_count'] = self._next_bytes(1)
+        # The optional PWAD's name (sent for each PWAD)
+        self.query_dict['optional_pwads'] = []
+        if self.query_dict['optional_pwads_count'] > 0:
+            for i in range(0, self.query_dict['optional_pwads_count']):
+                self.query_dict['optional_pwads'].append(self._next_string())
+        # Amount of DEHACKED (*.deh) patches loaded
+        self.query_dict['deh_loaded'] = self._next_bytes(1)
+        # DEHACKED patch name (one string for each .deh patch)
+        self.query_dict['deh_list'] = []
+        if self.query_dict['deh_loaded'] > 0:
+            for i in range(0, self.query_dict['deh_loaded']):
+                self.query_dict['deh_list'].append(self._next_string())
+        # End of raw query data.
+
+        # TODO: SQF2 extended flags
 
     @property
     def version(self) -> str:
